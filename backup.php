@@ -1,6 +1,6 @@
 <?php
+include 'server-backup.php';
 
-class Backup {
-
-}
-
+$b = new ServerBackup;
+$b->addPath('./testfile.php');
+$b->addPath('./dir/');
