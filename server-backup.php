@@ -84,19 +84,28 @@ class ServerBackup {
             $this->callErrorHandler('Fail on creating archive file', ['filepath' => $filepath, 'error' => $open]);
             return false;
         } 
+        $this->callLogHandler('Creating backup archive: ' . $filepath);
 
         $this->backupFiles($archive);
+        $this->backupDatabases($archive);
 
         $archive->close();
         return true;
     }
 
+    public function backupDatabases($archive){
+        $this->callLogHandler('Backuping databases');
+    }
+
     protected function backupFiles($archive){
+        $this->callLogHandler('Backuping files');
+
         foreach($this->paths as $paths){
             $path = $paths['path'];
             $relativePath = $paths['relative'];
-
+            
             if(is_dir($path)){
+                $this->callLogHandler('Backup directory: ' . $path);
                 //$archive->addGlob($p . '/*.*', GLOB_BRACE, [/*'add_path' => $p, 'remove_all_path' => true*/]);
 
                 // Create recursive directory iterator
@@ -120,6 +129,7 @@ class ServerBackup {
             }
             
             if(is_file($path)){
+                $this->callLogHandler('Backup file: ' . $path);
                 $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
             }
         }
