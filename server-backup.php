@@ -33,9 +33,21 @@ class ServerBackup {
         echo date('[Y-M-d H:i:s] ') . $text . (sizeof($data) > 0 ? var_export($data, true) : '') . PHP_EOL;
     }
 
-    public function addPath(string $path){
+    /**
+     * Add files and directories for backup
+     * @param string $path Path to file or directory
+     * @param string|null $relativePath Relative path in archive, if null - use $path
+     * @return self
+     */
+    public function addPath(string $path, ?string $relativePath = null): self {
+        $relativePath = is_null($relativePath) ? $path : $relativePath;
+        $relativePath = rtrim($relativePath, '/\\');
+
         if(is_dir($path) || is_file($path)) {
-            $this->paths[] = $path;
+            $this->paths[] = [
+                'path' => realpath($path),
+                'relative' => $relativePath,
+            ];
         } else {
             $this->callErrorHandler('Invalid path: ' . $path, ['path' => realpath($path)]);
         }
@@ -52,11 +64,17 @@ class ServerBackup {
      */
     public function addDatabase(string $dbh, string $user, string $pass, array $tables = []){
         try {
-            $dbh = new PDO($dbh, $user, $pass);
+            $db = new PDO($dbh, $user, $pass);
+            $this->databases[] = [
+                'db' => $db,
+                'dbh' => $dbh,
+                'user' => $user,
+                'pass' => $pass,
+                'tables' => $tables
+            ];
         } catch (PDOException $e) {
             $this->callErrorHandler('Database connection error:' . $e->getMessage(), func_get_args());
         }
-
     }
 
     public function createBackup(string $filepath): bool {
@@ -74,15 +92,17 @@ class ServerBackup {
     }
 
     protected function backupFiles($archive){
-        foreach($this->paths as $path){
+        foreach($this->paths as $paths){
+            $path = $paths['path'];
+            $relativePath = $paths['relative'];
+
             if(is_dir($path)){
-                $p = realpath($path);
                 //$archive->addGlob($p . '/*.*', GLOB_BRACE, [/*'add_path' => $p, 'remove_all_path' => true*/]);
 
                 // Create recursive directory iterator
                 /** @var SplFileInfo[] $files */
                 $files = new RecursiveIteratorIterator(
-                    new RecursiveDirectoryIterator($p),
+                    new RecursiveDirectoryIterator($path),
                     RecursiveIteratorIterator::LEAVES_ONLY
                 );
 
@@ -91,16 +111,16 @@ class ServerBackup {
                     if(!$file->isDir()){
                         // Get real and relative path for current file
                         $filePath = $file->getRealPath();
-                        $relativePath = substr($filePath, strlen($p) + 1);
+                        $relative = $relativePath . DIRECTORY_SEPARATOR . substr($filePath, strlen($path) + 1);
 
                         // Add current file to archive
-                        $archive->addFile($filePath, $filePath);
+                        $archive->addFile($filePath, $relative);
                     }
                 }
             }
             
             if(is_file($path)){
-                $archive->addFile(realpath($path));
+                $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
             }
         }
     }
