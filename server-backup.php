@@ -59,7 +59,49 @@ class ServerBackup {
 
     }
 
-    public function setDestination(){
+    public function createBackup(string $filepath): bool {
+        $archive = new ZipArchive();
+        $open = $archive->open($filepath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        if (!$open) {
+            $this->callErrorHandler('Fail on creating archive file', ['filepath' => $filepath, 'error' => $open]);
+            return false;
+        } 
 
+        $this->backupFiles($archive);
+
+        $archive->close();
+        return true;
+    }
+
+    protected function backupFiles($archive){
+        foreach($this->paths as $path){
+            if(is_dir($path)){
+                $p = realpath($path);
+                //$archive->addGlob($p . '/*.*', GLOB_BRACE, [/*'add_path' => $p, 'remove_all_path' => true*/]);
+
+                // Create recursive directory iterator
+                /** @var SplFileInfo[] $files */
+                $files = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($p),
+                    RecursiveIteratorIterator::LEAVES_ONLY
+                );
+
+                foreach ($files as $file){
+                    // Skip directories (they would be added automatically)
+                    if(!$file->isDir()){
+                        // Get real and relative path for current file
+                        $filePath = $file->getRealPath();
+                        $relativePath = substr($filePath, strlen($p) + 1);
+
+                        // Add current file to archive
+                        $archive->addFile($filePath, $filePath);
+                    }
+                }
+            }
+            
+            if(is_file($path)){
+                $archive->addFile(realpath($path));
+            }
+        }
     }
 }
