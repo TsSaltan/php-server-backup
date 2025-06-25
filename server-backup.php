@@ -7,6 +7,7 @@ class ServerBackup {
     protected $databases = [];
     protected $errorHandler;
     protected $logHandler;
+    protected $removeFiles = [];
 
     public function __construct() {
         // Initialization code here
@@ -98,13 +99,20 @@ class ServerBackup {
         } 
         $this->callLogHandler('Creating backup archive: ' . $filepath);
 
-        $this->backupFiles($archive);
         $this->backupDatabases($archive);
+        $this->backupFiles($archive);
 
         $archive->close();
+
+        foreach($this->removeFiles as $file){
+            if(file_exists($file)){
+                @unlink($file);
+            }
+        }
         return true;
     }
 
+    protected $tablesNum = 0;
     public function backupDatabases($archive){
         $this->callLogHandler('Backuping databases ...');
 
@@ -116,11 +124,18 @@ class ServerBackup {
                 if(sizeof($db['tables']) > 0 && !in_array($table, $db['tables'])){
                     continue;
                 }
-                $this->callLogHandler('Backup table: ' . $table);
+                $filename = "{$table}-{$this->tablesNum}.sql";
+                $this->tablesNum++;
+                
+                $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
                 $dump = new Mysqldump($db['dbh'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
-                $dump->start("dump-{$table}.sql");
+                $dump->start($filename);
+                $this->addPath($filename, '/.databases/' . $db['type'] . '-' . $db['host'] . '/');
+                $this->removeFiles[] = $filename;
             }
         }
+
+        $this->callLogHandler('Backuped ' . $this->tablesNum . ' table(s)');
     }
 
     protected $filesNum = 0;
