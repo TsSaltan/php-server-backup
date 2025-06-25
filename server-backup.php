@@ -50,7 +50,7 @@ class ServerBackup {
      * @return self
      */
     public function addPath(string $path, ?string $relativePath = null): self {
-        $relativePath = is_null($relativePath) ? $path : $relativePath;
+        $relativePath = is_null($relativePath) ? (is_dir($path) ? $path : dirname($path)) : $relativePath;
         $relativePath = rtrim($relativePath, '/\\');
 
         if(is_dir($path) || is_file($path)) {
@@ -124,13 +124,18 @@ class ServerBackup {
         return file_exists($this->archiveFile);
     }
 
-    public function uploadYandexDisk(string $accessToken, string $remotePath): bool {
+    public function getArchiveFile(): ?string {
+        return $this->isBackupCreated() ? realpath($this->archiveFile) : null;
+    }
+
+    public function uploadYandexDisk(string $accessToken, string $remotePath, bool $removeAfterUpload = false): bool {
         if(!$this->isBackupCreated()){
             $this->callErrorHandler('Backup file not created', ['archiveFile' => $this->archiveFile]);
             return false;
         }
 
         $filePath = realpath($this->archiveFile);
+        $remotePath = rtrim($remotePath, '/\\') . '/' . basename($filePath);
 
         // Step 1: Get the upload URL from Yandex Disk API
         $url = "https://cloud-api.yandex.net/v1/disk/resources/upload?overwrite=true&path=" . urlencode($remotePath);
@@ -180,6 +185,10 @@ class ServerBackup {
         }
 
         $this->callLogHandler('File successfully uploaded to Yandex.Disk', ['httpCode' => $httpCode, 'response' => $response]);
+
+        if($removeAfterUpload){
+            unlink($filePath);
+        }
         return true;
     }
 
