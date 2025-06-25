@@ -1,4 +1,7 @@
 <?php
+
+use Ifsnop\Mysqldump\Mysqldump;
+
 class ServerBackup {
     protected $paths = [];
     protected $databases = [];
@@ -57,16 +60,23 @@ class ServerBackup {
 
     /**
      * Add database for backup
-     * @param string $dbh Database host string, f.e. "mysql:host=localhost;dbname=dbname;charset=utf8"
-     * @param string $user
-     * @param string $pass
-     * @param array $tables Table names for backup, if empty - all tables
+     * 
+     * @param string    $host     
+     * @param string    $dbname
+     * @param string    $user 
+     * @param string    $pass 
+     * @param array     $tables (optional) Tables to backup, if empty - backup all tables
+     * @param string    $type (optional) Database type (default: 'mysql')
+     * @param string    $charset (optional) Database charset (default: 'utf8')
      */
-    public function addDatabase(string $dbh, string $user, string $pass, array $tables = []){
+    public function addDatabase(string $host, string $dbname, string $user, string $pass, array $tables = [], string $type = 'mysql', string $charset = 'utf8'): self {
+        $dbh = "{$type}:host={$host};dbname={$dbname};charset={$charset}";
         try {
             $db = new PDO($dbh, $user, $pass);
             $this->databases[] = [
-                'db' => $db,
+                'pdo' => $db,
+                'type' => $type,
+                'host' => $host,
                 'dbh' => $dbh,
                 'user' => $user,
                 'pass' => $pass,
@@ -75,6 +85,8 @@ class ServerBackup {
         } catch (PDOException $e) {
             $this->callErrorHandler('Database connection error:' . $e->getMessage(), func_get_args());
         }
+
+        return $this;
     }
 
     public function createBackup(string $filepath): bool {
@@ -94,18 +106,33 @@ class ServerBackup {
     }
 
     public function backupDatabases($archive){
-        $this->callLogHandler('Backuping databases');
+        $this->callLogHandler('Backuping databases ...');
+
+        foreach($this->databases as $db){
+            $dbh = $db['pdo'];
+            $this->callLogHandler('Backup database: ' . $db['dbh']);
+            foreach($dbh->query("SHOW TABLES") as $row) {
+                $table = current($row);
+                if(sizeof($db['tables']) > 0 && !in_array($table, $db['tables'])){
+                    continue;
+                }
+                $this->callLogHandler('Backup table: ' . $table);
+                $dump = new Mysqldump($db['dbh'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
+                $dump->start("dump-{$table}.sql");
+            }
+        }
     }
 
+    protected $filesNum = 0;
     protected function backupFiles($archive){
-        $this->callLogHandler('Backuping files');
+        $this->callLogHandler('Backuping files ...');
 
         foreach($this->paths as $paths){
             $path = $paths['path'];
             $relativePath = $paths['relative'];
             
             if(is_dir($path)){
-                $this->callLogHandler('Backup directory: ' . $path);
+                $this->callLogHandler('Backup from directory: ' . $path);
                 //$archive->addGlob($p . '/*.*', GLOB_BRACE, [/*'add_path' => $p, 'remove_all_path' => true*/]);
 
                 // Create recursive directory iterator
@@ -121,9 +148,10 @@ class ServerBackup {
                         // Get real and relative path for current file
                         $filePath = $file->getRealPath();
                         $relative = $relativePath . DIRECTORY_SEPARATOR . substr($filePath, strlen($path) + 1);
-
+                        $this->callLogHandler('Backup file from directory: ' . $filePath);
                         // Add current file to archive
                         $archive->addFile($filePath, $relative);
+                        $this->filesNum++;
                     }
                 }
             }
@@ -131,7 +159,9 @@ class ServerBackup {
             if(is_file($path)){
                 $this->callLogHandler('Backup file: ' . $path);
                 $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
+                $this->filesNum++;
             }
         }
+        $this->callLogHandler('Backuped ' . $this->filesNum . ' file(s)');
     }
 }

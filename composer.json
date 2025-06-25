@@ -1,0 +1,23 @@
+{
+    "name": "ts.saltan/php-server-backup",
+    "description": "Backuping files, directories and SQL databases",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Ts.Saltan",
+            "email": "TsSaltan@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "repositories":
+    [
+        {
+            "type": "git",
+            "url": "https://github.com/ifsnop/mysqldump-php/"
+        }
+    ],
+    "require": {
+    	"php":">=7.1",
+        "ifsnop/mysqldump-php": "dev-master"
+    }
+}
