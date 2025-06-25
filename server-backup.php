@@ -9,6 +9,12 @@ class ServerBackup {
     protected $logHandler;
     protected $removeFiles = [];
 
+    /**
+     * Filename of saved archive
+     * @var string
+     */
+    protected $archiveFile;
+
     public function __construct() {
         // Initialization code here
     }
@@ -90,14 +96,16 @@ class ServerBackup {
         return $this;
     }
 
-    public function createBackup(string $filepath): bool {
+    public function createBackup(?string $filepath = null): bool {
+        $this->archiveFile = is_null($filepath) ? 'backup-' . date('Y-m-d_H-i-s') . '.zip' : $filepath;
+
         $archive = new ZipArchive();
-        $open = $archive->open($filepath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $open = $archive->open($this->archiveFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         if (!$open) {
-            $this->callErrorHandler('Fail on creating archive file', ['filepath' => $filepath, 'error' => $open]);
+            $this->callErrorHandler('Fail on creating archive file', ['filepath' => $this->archiveFile, 'error' => $open]);
             return false;
         } 
-        $this->callLogHandler('Creating backup archive: ' . $filepath);
+        $this->callLogHandler('Creating backup archive: ' . $this->archiveFile);
 
         $this->backupDatabases($archive);
         $this->backupFiles($archive);
@@ -109,6 +117,69 @@ class ServerBackup {
                 @unlink($file);
             }
         }
+        return true;
+    }
+
+    protected function isBackupCreated(): bool {
+        return file_exists($this->archiveFile);
+    }
+
+    public function uploadYandexDisk(string $accessToken, string $remotePath): bool {
+        if(!$this->isBackupCreated()){
+            $this->callErrorHandler('Backup file not created', ['archiveFile' => $this->archiveFile]);
+            return false;
+        }
+
+        $filePath = realpath($this->archiveFile);
+
+        // Step 1: Get the upload URL from Yandex Disk API
+        $url = "https://cloud-api.yandex.net/v1/disk/resources/upload?overwrite=true&path=" . urlencode($remotePath);
+        $headers = [
+            "Authorization: OAuth $accessToken"
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            $this->callErrorHandler("Yandex API: Failed to get upload URL", ['httpCode' => $httpCode, 'response' => $response]);
+            return false;
+        } else {
+            $this->callLogHandler('Got upload URL from Yandex Disk API', ['response' => $response]);
+        }
+
+        $responseData = json_decode($response, true);
+        if (!isset($responseData['href'])) {
+            $this->callErrorHandler("Yandex API: Invalid response", ['httpCode' => $httpCode, 'response' => $response]);
+            return false;
+        }
+
+        $uploadUrl = $responseData['href'];
+
+        // Step 2: Upload the file to the obtained URL
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $uploadUrl);
+        curl_setopt($ch, CURLOPT_PUT, true);
+        curl_setopt($ch, CURLOPT_INFILE, fopen($filePath, 'r'));
+        curl_setopt($ch, CURLOPT_INFILESIZE, filesize($filePath));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 201) {
+            $this->callErrorHandler("Yandex API: Failed to upload file", ['httpCode' => $httpCode, 'response' => $response]);
+            return false;
+        }
+
+        $this->callLogHandler('File successfully uploaded to Yandex.Disk', ['httpCode' => $httpCode, 'response' => $response]);
         return true;
     }
 
