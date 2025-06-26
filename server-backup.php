@@ -48,6 +48,7 @@ class ServerBackup {
     public function addPath(string $path, ?string $relativePath = null): self {
         $relativePath = is_null($relativePath) ? (is_dir($path) ? $path : dirname($path)) : $relativePath;
         $relativePath = rtrim($relativePath, '/\\');
+        $relativePath = ltrim($relativePath, '/\\');
 
         if(is_dir($path) || is_file($path)) {
             $this->paths[] = [
@@ -113,6 +114,7 @@ class ServerBackup {
                 @unlink($file);
             }
         }
+        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile);
         return true;
     }
 
@@ -180,7 +182,7 @@ class ServerBackup {
             return false;
         }
 
-        $this->callLogHandler('File successfully uploaded to Yandex.Disk', ['httpCode' => $httpCode, 'response' => $response]);
+        $this->callLogHandler('File successfully uploaded to Yandex.Disk: ' . $remotePath);
 
         if($removeAfterUpload){
             unlink($filePath);
@@ -200,13 +202,14 @@ class ServerBackup {
                 if(sizeof($db['tables']) > 0 && !in_array($table, $db['tables'])){
                     continue;
                 }
-                $filename = "{$table}-{$this->tablesNum}.sql";
+                
+                $filename = sprintf("%02d", $this->tablesNum) . "-{$table}.sql";
                 $this->tablesNum++;
                 
                 $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
                 $dump = new Mysqldump($db['dbh'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
                 $dump->start($filename);
-                $this->addPath($filename, '/.databases/' . $db['type'] . '-' . $db['host'] . '/');
+                $this->addPath($filename, '/.databases/' . $db['user'] . '@' . $db['host'] . '/');
                 $this->removeFiles[] = $filename;
             }
         }

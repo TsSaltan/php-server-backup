@@ -1,6 +1,6 @@
 {
     "name": "ts.saltan/php-server-backup",
-    "description": "Backuping files, directories and SQL databases",
+    "description": "Backuping files, directories, SQL databases to zip archive and upload to cloud storage",
     "type": "library",
     "authors": [
         {
@@ -19,5 +19,8 @@
     "require": {
     	"php":">=7.1",
         "ifsnop/mysqldump-php": "dev-master"
+    },
+    "autoload": {
+        "files": ["server-backup.php"]
     }
 }
