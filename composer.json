@@ -1,11 +1,11 @@
 {
-    "name": "ts.saltan/php-server-backup",
+    "name": "tssaltan/php-server-backup",
     "description": "Backuping files, directories, SQL databases to zip archive and upload to cloud storage",
     "type": "library",
     "authors": [
         {
-            "name": "Ts.Saltan",
-            "email": "TsSaltan@gmail.com"
+            "name": "tssaltan",
+            "email": "tssaltan@gmail.com"
         }
     ],
     "minimum-stability": "dev",
