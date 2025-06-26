@@ -1,9 +1,24 @@
+# Script for backup your web-project
+## Usage
+```php
+set_time_limit(0);
+
+$b = new ServerBackup;
+$b->addPath('/var/www/html/'); // add directory with all files
+$b->addPath('/var/www/private/index.php'); // add file
+$b->addDatabase('localhost', 'database', 'user', 'pass'); // add database dump
+$b->createBackup(); // zip-archive with backup was created
+$archive = $b->getArchiveFile(); // zip-archive filename
+
+$ydToken = 'y0__abcdefghijklmnopqrstuvwxyz0123456789';
+$b->uploadYandexDisk($ydToken, '/backups/my-webserver-backup/'); // upload archive to yandex.disk
+```
+
 ## Required
 - PHP v 8.0 or higher
-
-### PHP extensions:
-- [Zip](https://www.php.net/manual/en/class.ziparchive.php)
-- [PDO](https://www.php.net/manual/en/class.pdo.php)
+- PHP extensions:
+  - [Zip](https://www.php.net/manual/en/class.ziparchive.php)
+  - [PDO](https://www.php.net/manual/en/class.pdo.php)
  
 ## How to get access-token for Yandex.Disk
 [Yandex API documentation](https://yandex.ru/dev/disk-api/doc/ru/concepts/quickstart#quickstart__oauth)
