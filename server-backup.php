@@ -1,12 +1,35 @@
 <?php
-
 use Ifsnop\Mysqldump\Mysqldump;
 
 class ServerBackup {
+    /**
+     * Paths to files and directories for backup
+     * @var array
+     */
     protected $paths = [];
+
+    /**
+     * Databases for backup
+     * @var array
+     */
     protected $databases = [];
+
+    /**
+     * Error handler
+     * @var callable
+     */
     protected $errorHandler;
+
+    /**
+     * Log handler
+     * @var callable
+     */
     protected $logHandler;
+
+    /**
+     * Files to remove after backup
+     * @var array
+     */
     protected $removeFiles = [];
 
     /**
@@ -14,6 +37,18 @@ class ServerBackup {
      * @var string
      */
     protected $archiveFile;
+    
+    /**
+     * Number of backuped tables
+     * @var int
+     */
+    protected $tablesNum = 0;
+
+    /**
+     * Number of backuped files
+     * @var int
+     */
+    protected $filesNum = 0;
 
     public function setErrorHandler(callable $handler){
         $this->errorHandler = $handler;
@@ -93,6 +128,12 @@ class ServerBackup {
         return $this;
     }
 
+    /**
+     * Create backup archive
+     * 
+     * @param string|null $filepath Path to save archive, if null - use default name with current date and time
+     * @return bool True on success, false on failure
+     */
     public function createBackup(?string $filepath = null): bool {
         $this->archiveFile = is_null($filepath) ? 'backup-' . date('Y-m-d_H-i-s') . '.zip' : $filepath;
 
@@ -122,10 +163,23 @@ class ServerBackup {
         return file_exists($this->archiveFile);
     }
 
+    /**
+     * Get path to created archive file
+     * 
+     * @return string|null Path to archive file or null if backup not created
+     */
     public function getArchiveFile(): ?string {
         return $this->isBackupCreated() ? realpath($this->archiveFile) : null;
     }
 
+    /**
+     * Upload backup archive to Yandex Disk
+     * 
+     * @param string $accessToken OAuth access token for Yandex Disk API
+     * @param string $remotePath Remote path on Yandex Disk where the file will be uploaded
+     * @param bool $removeAfterUpload Remove local file after upload (default: false)
+     * @return bool
+     */
     public function uploadYandexDisk(string $accessToken, string $remotePath, bool $removeAfterUpload = false): bool {
         if(!$this->isBackupCreated()){
             $this->callErrorHandler('Backup file not created', ['archiveFile' => $this->archiveFile]);
@@ -150,7 +204,7 @@ class ServerBackup {
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        if ($httpCode !== 200) {
+        if($httpCode !== 200) {
             $this->callErrorHandler("Yandex API: Failed to get upload URL", ['httpCode' => $httpCode, 'response' => $response]);
             return false;
         } else {
@@ -190,8 +244,7 @@ class ServerBackup {
         return true;
     }
 
-    protected $tablesNum = 0;
-    public function backupDatabases($archive){
+    protected function backupDatabases($archive){
         $this->callLogHandler('Backuping databases ...');
 
         foreach($this->databases as $db){
@@ -216,8 +269,7 @@ class ServerBackup {
 
         $this->callLogHandler('Backuped ' . $this->tablesNum . ' table(s)');
     }
-
-    protected $filesNum = 0;
+    
     protected function backupFiles($archive){
         $this->callLogHandler('Backuping files ...');
 
