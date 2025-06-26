@@ -15,10 +15,6 @@ class ServerBackup {
      */
     protected $archiveFile;
 
-    public function __construct() {
-        // Initialization code here
-    }
-
     public function setErrorHandler(callable $handler){
         $this->errorHandler = $handler;
     }
@@ -40,7 +36,7 @@ class ServerBackup {
     }
 
     protected function defaultLogHandler(string $text, array $data){
-        echo date('[Y-M-d H:i:s] ') . $text . (sizeof($data) > 0 ? var_export($data, true) : '') . PHP_EOL;
+        echo date('[Y-M-d H:i:s] ') . $text . (sizeof($data) > 0 ? PHP_EOL . var_export($data, true) : '') . PHP_EOL;
     }
 
     /**
