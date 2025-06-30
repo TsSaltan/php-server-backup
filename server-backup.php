@@ -91,7 +91,7 @@ class ServerBackup {
                 'relative' => $relativePath,
             ];
         } else {
-            $this->callErrorHandler('Invalid path: ' . $path, ['path' => realpath($path)]);
+            $this->callErrorHandler('Invalid backup path: ' . $path);
         }
 
         return $this;
@@ -122,7 +122,7 @@ class ServerBackup {
                 'tables' => $tables
             ];
         } catch (PDOException $e) {
-            $this->callErrorHandler('Database connection error:' . $e->getMessage(), func_get_args());
+            $this->callErrorHandler('Cannot connect to database: ' . $e->getMessage(), func_get_args());
         }
 
         return $this;
