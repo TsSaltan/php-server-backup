@@ -107,22 +107,24 @@ class ServerBackup {
      * @param array     $tables (optional) Tables to backup, if empty - backup all tables
      * @param string    $type (optional) Database type (default: 'mysql')
      * @param string    $charset (optional) Database charset (default: 'utf8')
+     * @param int       $port (optional) (default: 3306)
      */
-    public function addDatabase(string $host, string $dbname, string $user, string $pass, array $tables = [], string $type = 'mysql', string $charset = 'utf8'): self {
-        $dbh = "{$type}:host={$host};dbname={$dbname};charset={$charset}";
+    public function addDatabase(string $host, string $dbname, string $user, string $pass, array $tables = [], string $type = 'mysql', string $charset = 'utf8', int $port = 3306): self {
+        $dsn = "{$type}:host={$host};port={$port};dbname={$dbname};charset={$charset}";
         try {
-            $db = new PDO($dbh, $user, $pass);
+            $db = new PDO($dsn, $user, $pass);
             $this->databases[] = [
                 'pdo' => $db,
                 'type' => $type,
                 'host' => $host,
-                'dbh' => $dbh,
+                'port' => $port,
+                'dsn' => $dsn,
                 'user' => $user,
                 'pass' => $pass,
                 'tables' => $tables
             ];
         } catch (PDOException $e) {
-            $this->callErrorHandler('Cannot connect to database: ' . $e->getMessage(), func_get_args());
+            $this->callErrorHandler('Cannot connect to database (' . $dsn . '): ' . $e->getMessage(), func_get_args());
         }
 
         return $this;
@@ -279,7 +281,6 @@ class ServerBackup {
             
             if(is_dir($path)){
                 $this->callLogHandler('Backup from directory: ' . $path);
-                //$archive->addGlob($p . '/*.*', GLOB_BRACE, [/*'add_path' => $p, 'remove_all_path' => true*/]);
 
                 // Create recursive directory iterator
                 /** @var SplFileInfo[] $files */
@@ -294,7 +295,7 @@ class ServerBackup {
                         // Get real and relative path for current file
                         $filePath = $file->getRealPath();
                         $relative = $relativePath . DIRECTORY_SEPARATOR . substr($filePath, strlen($path) + 1);
-                        $this->callLogHandler('Backup file from directory: ' . $filePath);
+                        //$this->callLogHandler('Backup file from directory: ' . $filePath);
                         // Add current file to archive
                         $archive->addFile($filePath, $relative);
                         $this->filesNum++;
