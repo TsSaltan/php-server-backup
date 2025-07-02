@@ -251,7 +251,7 @@ class ServerBackup {
 
         foreach($this->databases as $db){
             $dbh = $db['pdo'];
-            $this->callLogHandler('Backup database: ' . $db['dbh']);
+            $this->callLogHandler('Backup database: ' . $db['dsn']);
             foreach($dbh->query("SHOW TABLES") as $row) {
                 $table = current($row);
                 if(sizeof($db['tables']) > 0 && !in_array($table, $db['tables'])){
@@ -262,7 +262,7 @@ class ServerBackup {
                 $this->tablesNum++;
                 
                 $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
-                $dump = new Mysqldump($db['dbh'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
+                $dump = new Mysqldump($db['dsn'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
                 $dump->start($filename);
                 $this->addPath($filename, '/.databases/' . $db['user'] . '@' . $db['host'] . '/');
                 $this->removeFiles[] = $filename;
