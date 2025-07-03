@@ -10,8 +10,13 @@ $b->addDatabase('localhost', 'database', 'user', 'pass'); // add database dump
 $b->createBackup(); // zip-archive with backup was created
 $archive = $b->getArchiveFile(); // zip-archive filename
 
+// Upload backup to Yandex.Disk
 $ydToken = 'y0__abcdefghijklmnopqrstuvwxyz0123456789';
-$b->uploadYandexDisk($ydToken, '/backups/my-webserver-backup/'); // upload archive to yandex.disk
+$b->uploadYandexDisk($ydToken, '/backups/my-webserver-backup/', true); // if third param is true - archive file will be deleted
+
+// Upload backup to Dropbox
+$dToken = 'dropbox_token';
+$b->uploadDropbox($dToken, '/backups/my-webserver-backup/'); // upload archive to dropbox
 ```
 
 ## Requirements
@@ -29,3 +34,10 @@ $b->uploadYandexDisk($ydToken, '/backups/my-webserver-backup/'); // upload archi
 - Copy your applicatipn client ID. Replace `{YOUR_CLIENT_ID}` in link and go to URI: `https://oauth.yandex.ru/authorize?response_type=token&client_id={YOUR_CLIENT_ID}`
 - Tou will be redirected to `https://localhost/#access_token={YOUR_TOKEN}&token_type=bearer&expires_in=...&cid=...`
 - Use `{YOUR_TOKEN}` in script
+
+### Dropbox
+[Dropbox developers portal](https://www.dropbox.com/developers/)
+- Create [new application](https://www.dropbox.com/developers/apps/create)
+- Click *Permissions* tab and select `files.content.write`
+- Click *Settings* tab and click to *Generated access token*
+- Use generated token in your script

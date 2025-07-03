@@ -209,9 +209,9 @@ class ServerBackup {
         if($httpCode !== 200) {
             $this->callErrorHandler("Yandex API: Failed to get upload URL (code: " . $httpCode . "): " . $response, ['httpCode' => $httpCode, 'response' => $response]);
             return false;
-        } else {
-            $this->callLogHandler('Got upload URL from Yandex Disk API', ['response' => $response]);
-        }
+        } 
+        
+        $this->callLogHandler('Uploading file to Yandex Disk ...', ['response' => $response]);
 
         $responseData = json_decode($response, true);
         if (!isset($responseData['href'])) {
@@ -244,6 +244,56 @@ class ServerBackup {
             unlink($filePath);
         }
         return true;
+    }
+
+    public function uploadDropbox(string $accessToken, string $remotePath, bool $removeAfterUpload = false): bool {
+        if(!$this->isBackupCreated()){
+            $this->callErrorHandler('Backup file not created', ['archiveFile' => $this->archiveFile]);
+            return false;
+        }
+
+        $filePath = realpath($this->archiveFile);
+        $remotePath = '/' . ltrim(trim($remotePath, '/\\') . '/' . basename($filePath), '/\\');
+        
+        $fp = fopen($filePath , 'rb');
+        $size = filesize($filePath);
+        $apiArgs = [
+            'path' => $remotePath,
+            'mode' => 'add',
+        ];
+        
+        $this->callLogHandler('Uploading file to Dropbox ...', ['api_arg' => $apiArgs]);
+        $headers = [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/octet-stream',
+            'Dropbox-API-Arg: ' . json_encode($apiArgs),
+        ];
+
+        $ch = curl_init('https://content.dropboxapi.com/2/files/upload');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_PUT, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($ch, CURLOPT_INFILE, $fp);
+        curl_setopt($ch, CURLOPT_INFILESIZE, $size);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $response = curl_exec($ch);
+        $jsonResponse = json_decode($response, true);
+ 
+        curl_close($ch);
+        fclose($fp);
+
+        if($removeAfterUpload){
+            unlink($filePath);
+        }
+
+        if(isset($jsonResponse['path_display'])){
+            $this->callLogHandler('File successfully uploaded to Dropbox at path: ' . $jsonResponse['path_display'], ['response' => $jsonResponse]);
+            return true;
+        } else {
+            $this->callErrorHandler('Fail to upload file to Dropbox. API answer: ' . $response, ['response' => $response]);
+            return false;
+        }
+
     }
 
     protected function backupDatabases($archive){
