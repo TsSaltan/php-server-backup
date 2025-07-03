@@ -308,7 +308,7 @@ class ServerBackup {
                     continue;
                 }
                 
-                $filename = sprintf("%02d", $this->tablesNum) . "-{$table}.sql";
+                $filename = sys_get_temp_dir() . '/' . sprintf("%02d", $this->tablesNum) . "-{$table}.sql";
                 $this->tablesNum++;
                 
                 $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
