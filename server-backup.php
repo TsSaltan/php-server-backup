@@ -303,13 +303,14 @@ class ServerBackup {
         foreach($this->databases as $db){
             $dbh = $db['pdo'];
             $this->callLogHandler('Backup database: ' . $db['dsn']);
+            $postfix = substr(md5($db['dsn']), 0, 10);
             foreach($dbh->query("SHOW TABLES") as $row) {
                 $table = current($row);
                 if(sizeof($db['tables']) > 0 && !in_array($table, $db['tables'])){
                     continue;
                 }
                 
-                $filename = sys_get_temp_dir() . '/' . sprintf("%02d", $this->tablesNum) . "-{$table}.sql";
+                $filename = sys_get_temp_dir() . '/' . $table . '--' . sprintf("%02d", $this->tablesNum) . $postfix. ".sql";
                 $this->tablesNum++;
                 
                 $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
