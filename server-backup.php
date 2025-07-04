@@ -157,7 +157,7 @@ class ServerBackup {
                 @unlink($file);
             }
         }
-        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile);
+        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile . ' (' . round(filesize($this->archiveFile)/1024/1024, 2) . ' MiB)');
         return true;
     }
 
@@ -225,6 +225,7 @@ class ServerBackup {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $uploadUrl);
         curl_setopt($ch, CURLOPT_PUT, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-length: ' . filesize($filePath)]);
         curl_setopt($ch, CURLOPT_INFILE, fopen($filePath, 'r'));
         curl_setopt($ch, CURLOPT_INFILESIZE, filesize($filePath));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
