@@ -207,7 +207,8 @@ class ServerBackup {
         curl_close($ch);
 
         if($httpCode !== 200) {
-            $this->callErrorHandler("Yandex API: Failed to get upload URL (code: " . $httpCode . "): " . $response, ['httpCode' => $httpCode, 'response' => $response]);
+            $error = curl_error($ch);
+            $this->callErrorHandler("Yandex API: Failed to get upload URL (code: " . $httpCode . "): " . $response . ' / ' . $error, ['httpCode' => $httpCode, 'response' => $response, 'error' => $error]);
             return false;
         } 
         
@@ -235,7 +236,8 @@ class ServerBackup {
         curl_close($ch);
 
         if ($httpCode !== 201) {
-            $this->callErrorHandler("Yandex API: Failed to upload file (code: " . $httpCode . "): " . $response, ['httpCode' => $httpCode, 'response' => $response]);
+            $error = curl_error($ch);
+            $this->callErrorHandler("Yandex API: Failed to upload file (code: " . $httpCode . "): " . $response . '/' . $error, ['httpCode' => $httpCode, 'response' => $response, 'error' => $error]);
             return false;
         }
 
