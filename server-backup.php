@@ -150,6 +150,7 @@ class ServerBackup {
         $this->backupDatabases($archive);
         $this->backupFiles($archive);
 
+        $this->callLogHandler('Saving archive ' . $this->archiveFile . ' ...');
         $archive->close();
 
         foreach($this->removeFiles as $file){
@@ -366,7 +367,7 @@ class ServerBackup {
     protected function addFileToArchive(string $path, string $relativePath, ZipArchive $archive){
         // Check file accessibility
         try {
-            $fp = fopen($path, 'r');
+            $fp = @fopen($path, 'r');
             if ($fp === false) {
                 $this->callLogHandler('Cannot open file for reading: ' . $path);
             } else {
