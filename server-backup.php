@@ -158,7 +158,7 @@ class ServerBackup {
                 @unlink($file);
             }
         }
-        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile);
+        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile . ' [' . round(filesize($this->archiveFile) / 1024 / 1024, 2) . ' MiB]');
         return true;
     }
 
