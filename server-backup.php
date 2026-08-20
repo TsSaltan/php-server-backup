@@ -354,7 +354,8 @@ class ServerBackup {
             
             if(is_file($path)){
                 $this->callLogHandler('Backup file: ' . $path);
-                $this->addFileToArchive($path, $relativePath, $archive);
+                $relative = $relativePath . DIRECTORY_SEPARATOR . basename($path);
+                $this->addFileToArchive($path, $relative, $archive);
                 
             }
         }
@@ -364,7 +365,7 @@ class ServerBackup {
     /**
      * Checking file accessibility and add to archive
      */
-    protected function addFileToArchive(string $path, string $relativePath, ZipArchive $archive){
+    protected function addFileToArchive(string $path, string $relative, ZipArchive $archive){
         // Check file accessibility
         try {
             $fp = @fopen($path, 'r');
@@ -374,7 +375,7 @@ class ServerBackup {
                 fclose($fp);
                 
                 // Add file to archive
-                $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
+                $archive->addFile($path, $relative);
                 $this->filesNum++;
             }
         } catch (Exception $e) {
