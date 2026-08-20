@@ -322,7 +322,7 @@ class ServerBackup {
         $this->callLogHandler('Backuped ' . $this->tablesNum . ' table(s)');
     }
     
-    protected function backupFiles($archive){
+    protected function backupFiles(ZipArchive $archive){
         $this->callLogHandler('Backuping files ...');
 
         foreach($this->paths as $paths){
@@ -345,20 +345,39 @@ class ServerBackup {
                         // Get real and relative path for current file
                         $filePath = $file->getRealPath();
                         $relative = $relativePath . DIRECTORY_SEPARATOR . substr($filePath, strlen($path) + 1);
-                        //$this->callLogHandler('Backup file from directory: ' . $filePath);
-                        // Add current file to archive
-                        $archive->addFile($filePath, $relative);
-                        $this->filesNum++;
+                        
+                        $this->addFileToArchive($filePath, $relative, $archive);
                     }
                 }
             }
             
             if(is_file($path)){
                 $this->callLogHandler('Backup file: ' . $path);
-                $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
-                $this->filesNum++;
+                $this->addFileToArchive($path, $relativePath, $archive);
+                
             }
         }
         $this->callLogHandler('Backuped ' . $this->filesNum . ' file(s)');
+    }
+
+    /**
+     * Checking file accessibility and add to archive
+     */
+    protected function addFileToArchive(string $path, string $relativePath, ZipArchive $archive){
+        // Check file accessibility
+        try {
+            $fp = fopen($path, 'r');
+            if ($fp === false) {
+                $this->callLogHandler('Cannot open file for reading: ' . $path);
+            } else {
+                fclose($fp);
+                
+                // Add file to archive
+                $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
+                $this->filesNum++;
+            }
+        } catch (Exception $e) {
+            $this->callLogHandler('Error adding file to archive: ' . $path, ['error' => $e->getMessage()]);
+        }
     }
 }
