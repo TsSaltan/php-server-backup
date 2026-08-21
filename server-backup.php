@@ -164,6 +164,7 @@ class ServerBackup {
                 @unlink($file);
             }
         }
+
         $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile . ' [' . round(filesize($this->archiveFile) / 1024 / 1024, 2) . ' MiB]');
         return true;
     }
@@ -214,7 +215,8 @@ class ServerBackup {
         curl_close($ch);
 
         if($httpCode !== 200) {
-            $this->callErrorHandler("Yandex API: Failed to get upload URL (code: " . $httpCode . "): " . $response, ['httpCode' => $httpCode, 'response' => $response]);
+            $error = curl_error($ch);
+            $this->callErrorHandler("Yandex API: Failed to get upload URL (code: " . $httpCode . "): " . $response . ' / ' . $error, ['httpCode' => $httpCode, 'response' => $response, 'error' => $error]);
             return false;
         } 
         
@@ -233,6 +235,7 @@ class ServerBackup {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $uploadUrl);
         curl_setopt($ch, CURLOPT_PUT, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-length: ' . filesize($filePath)]);
         curl_setopt($ch, CURLOPT_INFILE, fopen($filePath, 'r'));
         curl_setopt($ch, CURLOPT_INFILESIZE, $size);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);        curl_setopt($ch, CURLOPT_NOPROGRESS, false);
@@ -245,7 +248,8 @@ class ServerBackup {
         curl_close($ch);
 
         if ($httpCode !== 201) {
-            $this->callErrorHandler("Yandex API: Failed to upload file (code: " . $httpCode . "): " . $response, ['httpCode' => $httpCode, 'response' => $response]);
+            $error = curl_error($ch);
+            $this->callErrorHandler("Yandex API: Failed to upload file (code: " . $httpCode . "): " . $response . '/' . $error, ['httpCode' => $httpCode, 'response' => $response, 'error' => $error]);
             return false;
         }
 
@@ -320,21 +324,20 @@ class ServerBackup {
         foreach($this->databases as $db){
             $dbh = $db['pdo'];
             $this->callLogHandler('Backup database: ' . $db['dsn']);
+            $postfix = substr(md5($db['dsn']), 0, 10);
             foreach($dbh->query("SHOW TABLES") as $row) {
                 $table = current($row);
                 if(sizeof($db['tables']) > 0 && !in_array($table, $db['tables'])){
                     continue;
                 }
                 
-                $filename = sprintf("%02d", $this->tablesNum) . "-{$table}.sql";
-                $file = sys_get_temp_dir() . '/' . $filename;
+                $filename = sys_get_temp_dir() . '/' . $table . '--' . sprintf("%02d", $this->tablesNum) . $postfix. ".sql";
                 $this->tablesNum++;
-                
                 $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
                 $dump = new Mysqldump($db['dsn'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
-                $dump->start($file);
-                $this->addPath($file, '/.databases/' . $db['user'] . '@' . $db['host'] . '/');
-                $this->removeFiles[] = $file;
+                $dump->start($filename);
+                $this->addPath($filename, '/.databases/' . $db['user'] . '@' . $db['host'] . '/');
+                $this->removeFiles[] = $filename;
             }
         }
 
