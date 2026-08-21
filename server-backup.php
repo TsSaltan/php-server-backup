@@ -3,16 +3,21 @@ use Ifsnop\Mysqldump\Mysqldump;
 
 class ServerBackup {
     /**
+     * Percent step for progress log print
+     */
+    const int PROGRESS_LOG_STEP = 5;
+
+    /**
      * Paths to files and directories for backup
      * @var array
      */
-    protected $paths = [];
+    protected array $paths = [];
 
     /**
      * Databases for backup
      * @var array
      */
-    protected $databases = [];
+    protected array $databases = [];
 
     /**
      * Error handler
@@ -30,31 +35,33 @@ class ServerBackup {
      * Files to remove after backup
      * @var array
      */
-    protected $removeFiles = [];
+    protected array $removeFiles = [];
 
     /**
      * Filename of saved archive
      * @var string
      */
-    protected $archiveFile;
+    protected string $archiveFile;
 
     /**
      * Archive thread
      * @var ZipArchive
      */
-    protected $archive;
+    protected ZipArchive $archive;
     
     /**
      * Number of backuped tables
      * @var int
      */
-    protected $tablesNum = 0;
+    protected int $tablesNum = 0;
 
     /**
      * Number of backuped files
      * @var int
      */
-    protected $filesNum = 0;
+    protected int $filesNum = 0;
+
+    protected array $lastProgress = [];
 
     public function setErrorHandler(callable $handler){
         $this->errorHandler = $handler;
@@ -78,6 +85,14 @@ class ServerBackup {
 
     protected function defaultLogHandler(string $text, array $data){
         echo date('[Y-M-d H:i:s] ') . $text . (sizeof($data) > 0 ? PHP_EOL . var_export($data, true) : '') . PHP_EOL;
+    }
+    
+    protected function uploadProgressHandler(string $serviceName, int $uploadBytes, int $fileSize){
+        $perc = round($uploadBytes / $fileSize * 100);
+        if(isset($lastProgress[$serviceName]) && abs($lastProgress[$serviceName] - $perc) < self::PROGRESS_LOG_STEP) return;
+        
+        $this->callLogHandler($serviceName . ' uploading: ' . $perc . '% (' . round($uploadBytes / 1024 / 1024). ' Mib of ' . round($fileSize / 1024 / 1024). ')');
+        $lastProgress[$serviceName] = $perc;
     }
 
     /**
@@ -240,7 +255,7 @@ class ServerBackup {
         curl_setopt($ch, CURLOPT_INFILESIZE, $size);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);        curl_setopt($ch, CURLOPT_NOPROGRESS, false);
         curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($ch, $dltotal, $dlnow, $uptotal, $upnow) use ($size){
-            $this->callLogHandler('Yandex uploading: ' . round($upnow / $size * 100) . '%');
+            $this->uploadProgressHandler('Yandex', $upnow, $size);
         });
 
         $response = curl_exec($ch);
@@ -293,7 +308,7 @@ class ServerBackup {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_NOPROGRESS, false);
         curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($ch, $dltotal, $dlnow, $uptotal, $upnow) use ($size){
-            $this->callLogHandler('Dropbox uploading: ' . round($upnow / $size * 100) . '%');
+            $this->uploadProgressHandler('Dropbox', $upnow, $size);
         });
 
         $response = curl_exec($ch);
