@@ -5,7 +5,7 @@ class ServerBackup {
     /**
      * Percent step for progress log print
      */
-    const int PROGRESS_LOG_STEP = 5;
+    const PROGRESS_LOG_STEP = 5;
 
     /**
      * Paths to files and directories for backup
