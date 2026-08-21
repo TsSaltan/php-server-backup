@@ -37,6 +37,12 @@ class ServerBackup {
      * @var string
      */
     protected $archiveFile;
+
+    /**
+     * Archive thread
+     * @var ZipArchive
+     */
+    protected $archive;
     
     /**
      * Number of backuped tables
@@ -139,25 +145,27 @@ class ServerBackup {
     public function createBackup(?string $filepath = null): bool {
         $this->archiveFile = is_null($filepath) ? 'backup-' . date('Y-m-d_H-i-s') . '.zip' : $filepath;
 
-        $archive = new ZipArchive();
-        $open = $archive->open($this->archiveFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $this->archive = new ZipArchive();
+        $open = $this->archive->open($this->archiveFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         if (!$open) {
             $this->callErrorHandler('Fail on creating archive file', ['filepath' => $this->archiveFile, 'error' => $open]);
             return false;
         } 
         $this->callLogHandler('Creating backup archive: ' . $this->archiveFile);
 
-        $this->backupDatabases($archive);
-        $this->backupFiles($archive);
+        $this->backupDatabases();
+        $this->backupFiles();
 
-        $archive->close();
+        $this->callLogHandler('Saving archive ' . $this->archiveFile . ' ...');
+        $this->archive->close();
 
         foreach($this->removeFiles as $file){
             if(file_exists($file)){
                 @unlink($file);
             }
         }
-        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile . ' (' . round(filesize($this->archiveFile)/1024/1024, 2) . ' MiB)');
+
+        $this->callLogHandler('Backup saved to archive: ' . $this->archiveFile . ' [' . round(filesize($this->archiveFile) / 1024 / 1024, 2) . ' MiB]');
         return true;
     }
 
@@ -221,15 +229,19 @@ class ServerBackup {
         }
 
         $uploadUrl = $responseData['href'];
-
+        $size = filesize($filePath);
+        
         // Step 2: Upload the file to the obtained URL
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $uploadUrl);
         curl_setopt($ch, CURLOPT_PUT, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-length: ' . filesize($filePath)]);
         curl_setopt($ch, CURLOPT_INFILE, fopen($filePath, 'r'));
-        curl_setopt($ch, CURLOPT_INFILESIZE, filesize($filePath));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_INFILESIZE, $size);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);        curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+        curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($ch, $dltotal, $dlnow, $uptotal, $upnow) use ($size){
+            $this->callLogHandler('Yandex uploading: ' . round($upnow / $size * 100) . '%');
+        });
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -279,6 +291,11 @@ class ServerBackup {
         curl_setopt($ch, CURLOPT_INFILE, $fp);
         curl_setopt($ch, CURLOPT_INFILESIZE, $size);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+        curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($ch, $dltotal, $dlnow, $uptotal, $upnow) use ($size){
+            $this->callLogHandler('Dropbox uploading: ' . round($upnow / $size * 100) . '%');
+        });
+
         $response = curl_exec($ch);
         $jsonResponse = json_decode($response, true);
  
@@ -299,7 +316,9 @@ class ServerBackup {
 
     }
 
-    protected function backupDatabases($archive){
+    protected function backupDatabases(){
+        if(sizeof($this->databases) == 0) return;
+
         $this->callLogHandler('Backuping databases ...');
 
         foreach($this->databases as $db){
@@ -314,7 +333,6 @@ class ServerBackup {
                 
                 $filename = sys_get_temp_dir() . '/' . $table . '--' . sprintf("%02d", $this->tablesNum) . $postfix. ".sql";
                 $this->tablesNum++;
-                
                 $this->callLogHandler('Backup table: `' . $table . '` to file ' . $filename);
                 $dump = new Mysqldump($db['dsn'], $db['user'], $db['pass'], ["include-tables" => [$table]]);
                 $dump->start($filename);
@@ -326,7 +344,7 @@ class ServerBackup {
         $this->callLogHandler('Backuped ' . $this->tablesNum . ' table(s)');
     }
     
-    protected function backupFiles($archive){
+    protected function backupFiles(){
         $this->callLogHandler('Backuping files ...');
 
         foreach($this->paths as $paths){
@@ -349,20 +367,40 @@ class ServerBackup {
                         // Get real and relative path for current file
                         $filePath = $file->getRealPath();
                         $relative = $relativePath . DIRECTORY_SEPARATOR . substr($filePath, strlen($path) + 1);
-                        //$this->callLogHandler('Backup file from directory: ' . $filePath);
-                        // Add current file to archive
-                        $archive->addFile($filePath, $relative);
-                        $this->filesNum++;
+                        
+                        $this->addFileToArchive($filePath, $relative);
                     }
                 }
             }
             
             if(is_file($path)){
                 $this->callLogHandler('Backup file: ' . $path);
-                $archive->addFile($path, $relativePath . DIRECTORY_SEPARATOR . basename($path));
-                $this->filesNum++;
+                $relative = $relativePath . DIRECTORY_SEPARATOR . basename($path);
+                $this->addFileToArchive($path, $relative);
+                
             }
         }
         $this->callLogHandler('Backuped ' . $this->filesNum . ' file(s)');
+    }
+
+    /**
+     * Checking file accessibility and add to archive
+     */
+    protected function addFileToArchive(string $path, string $relative){
+        // Check file accessibility
+        try {
+            $fp = @fopen($path, 'r');
+            if ($fp === false) {
+                $this->callErrorHandler('Cannot open file for reading: ' . $path);
+            } else {
+                fclose($fp);
+                
+                // Add file to archive
+                $this->archive->addFile($path, $relative);
+                $this->filesNum++;
+            }
+        } catch (Exception $e) {
+            $this->callErrorHandler('Error adding file to archive: ' . $path, ['error' => $e->getMessage()]);
+        }
     }
 }
