@@ -217,32 +217,9 @@ class ServerBackup {
 
         $url = "https://api.telegram.org/bot{$botToken}/sendDocument";
         
-        // Prepare multipart form data
-        $boundary = '----FormBoundary' . uniqid();
-        $body = '';
-
-        // Add chat_id field
-        $body .= "--{$boundary}\r\n";
-        $body .= 'Content-Disposition: form-data; name="chat_id"' . "\r\n\r\n";
-        $body .= $chatId . "\r\n";
-
-        // Add document field with file
-        $body .= "--{$boundary}\r\n";
-        $body .= 'Content-Disposition: form-data; name="document"; filename="' . $fileName . '"' . "\r\n";
-        $body .= "Content-Type: application/zip\r\n\r\n";
-
-        // Create temporary stream for body
-        $tempBodyFile = tempnam(sys_get_temp_dir(), 'telegram_');
-        $bodyFp = fopen($tempBodyFile, 'wb');
-        fwrite($bodyFp, $body);
-
-        $headers = [
-            'Content-Type: multipart/form-data; boundary=' . $boundary,
-        ];
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, [
@@ -259,9 +236,7 @@ class ServerBackup {
         curl_close($ch);
 
         fclose($fp);
-        if(file_exists($tempBodyFile)){
-            @unlink($tempBodyFile);
-        }
+
 
         if ($httpCode !== 200) {
             $error = curl_error($ch);
@@ -275,7 +250,7 @@ class ServerBackup {
             $this->callLogHandler('File successfully uploaded to Telegram', ['chat_id' => $chatId, 'file_id' => $jsonResponse['result']['document']['file_id'] ?? 'unknown']);
             
             if($removeAfterUpload){
-                unlink($filePath);
+                @unlink($filePath);
             }
             return true;
         } else {
