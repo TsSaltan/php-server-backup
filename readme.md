@@ -41,3 +41,8 @@ $b->uploadDropbox($dToken, '/backups/my-webserver-backup/'); // upload archive t
 - Click *Permissions* tab and select `files.content.write`
 - Click *Settings* tab and click to *Generated access token*
 - Use generated token in your script
+
+
+### Telegram
+- Create new bot via [@BotFather](https://telegram.me/BotFather)
+- Use bot *token* and *chat_id* for sending backup files

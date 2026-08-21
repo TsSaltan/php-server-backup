@@ -197,6 +197,94 @@ class ServerBackup {
         return $this->isBackupCreated() ? realpath($this->archiveFile) : null;
     }
 
+    public function uploadTelegram(string $botToken, int $chatId, bool $removeAfterUpload = false): bool {
+        if(!$this->isBackupCreated()){
+            $this->callErrorHandler('Backup file not created', ['archiveFile' => $this->archiveFile]);
+            return false;
+        }
+
+        $filePath = realpath($this->archiveFile);
+        $fileName = basename($filePath);
+        $size = filesize($filePath);
+
+        $this->callLogHandler('Uploading file to Telegram ...', ['bot_token' => substr($botToken, 0, 10) . '***', 'chat_id' => $chatId]);
+
+        $fp = fopen($filePath, 'rb');
+        if ($fp === false) {
+            $this->callErrorHandler('Cannot open file for reading: ' . $filePath);
+            return false;
+        }
+
+        $url = "https://api.telegram.org/bot{$botToken}/sendDocument";
+        
+        // Prepare multipart form data
+        $boundary = '----FormBoundary' . uniqid();
+        $body = '';
+
+        // Add chat_id field
+        $body .= "--{$boundary}\r\n";
+        $body .= 'Content-Disposition: form-data; name="chat_id"' . "\r\n\r\n";
+        $body .= $chatId . "\r\n";
+
+        // Add document field with file
+        $body .= "--{$boundary}\r\n";
+        $body .= 'Content-Disposition: form-data; name="document"; filename="' . $fileName . '"' . "\r\n";
+        $body .= "Content-Type: application/zip\r\n\r\n";
+
+        // Create temporary stream for body
+        $tempBodyFile = tempnam(sys_get_temp_dir(), 'telegram_');
+        $bodyFp = fopen($tempBodyFile, 'wb');
+        fwrite($bodyFp, $body);
+
+        $headers = [
+            'Content-Type: multipart/form-data; boundary=' . $boundary,
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+            'chat_id' => $chatId,
+            'document' => new CURLFile($filePath, 'application/zip', $fileName)
+        ]);
+        curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+        curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($ch, $dltotal, $dlnow, $uptotal, $upnow) use ($size){
+            $this->uploadProgressHandler('Telegram', $upnow, $size);
+        });
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        fclose($fp);
+        if(file_exists($tempBodyFile)){
+            @unlink($tempBodyFile);
+        }
+
+        if ($httpCode !== 200) {
+            $error = curl_error($ch);
+            $this->callErrorHandler("Telegram API: Failed to upload file (code: " . $httpCode . "): " . $response . ' / ' . $error, ['httpCode' => $httpCode, 'response' => $response, 'error' => $error]);
+            return false;
+        }
+
+        $jsonResponse = json_decode($response, true);
+        
+        if (isset($jsonResponse['ok']) && $jsonResponse['ok'] === true) {
+            $this->callLogHandler('File successfully uploaded to Telegram', ['chat_id' => $chatId, 'file_id' => $jsonResponse['result']['document']['file_id'] ?? 'unknown']);
+            
+            if($removeAfterUpload){
+                unlink($filePath);
+            }
+            return true;
+        } else {
+            $errorMsg = isset($jsonResponse['description']) ? $jsonResponse['description'] : 'Unknown error';
+            $this->callErrorHandler('Fail to upload file to Telegram. API answer: ' . $response, ['response' => $jsonResponse, 'error' => $errorMsg]);
+            return false;
+        }
+    }
+
     /**
      * Upload backup archive to Yandex Disk
      * 
