@@ -5,7 +5,7 @@ class ServerBackup {
     /**
      * Percent step for progress log print
      */
-    const PROGRESS_LOG_STEP = 5;
+    const PROGRESS_LOG_STEP = 10;
 
     /**
      * Paths to files and directories for backup
@@ -89,10 +89,10 @@ class ServerBackup {
     
     protected function uploadProgressHandler(string $serviceName, int $uploadBytes, int $fileSize){
         $perc = round($uploadBytes / $fileSize * 100);
-        if(isset($lastProgress[$serviceName]) && abs($lastProgress[$serviceName] - $perc) < self::PROGRESS_LOG_STEP) return;
+        if(isset($this->lastProgress[$serviceName]) && abs($this->lastProgress[$serviceName] - $perc) < self::PROGRESS_LOG_STEP) return;
         
-        $this->callLogHandler($serviceName . ' uploading: ' . $perc . '% (' . round($uploadBytes / 1024 / 1024). ' Mib of ' . round($fileSize / 1024 / 1024). ')');
-        $lastProgress[$serviceName] = $perc;
+        $this->callLogHandler($serviceName . ' uploading: ' . $perc . '% (' . round($uploadBytes / 1024 / 1024, 2). ' MiB of ' . round($fileSize / 1024 / 1024, 2). ' MiB)');
+        $this->lastProgress[$serviceName] = $perc;
     }
 
     /**
